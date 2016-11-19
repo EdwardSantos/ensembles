@@ -79,16 +79,16 @@ build_features <-function(patient, sample) {
     fftnames = c(paste0(rep(paste0(paste0('V',seq(1,16))),each=6),paste0('_band_',seq(1,6))), 'id')
     setnames(fft_summaries,fftnames)
     
-#     cat('Computing coherence...\n')
-#     coh_summaries = data.table()
-#     for ( idi in ids ) {
-#       cat(idi,'\n')
-#       coh_summary=dt[id==idi, as.list(unlist(coh_summary(.SD))), .SDcols=cols]
-#       coh_summary[,id:=idi]
-#       coh_summaries = rbind(coh_summary, coh_summaries)
-#     }
-#     cohnames = c(paste0('coh_mean_',seq(1,6)),paste0('coh_sd_',seq(1,6)),'id')
-#     setnames(coh_summaries,cohnames)
+     cat('Computing coherence...\n')
+     coh_summaries = data.table()
+     for ( idi in ids ) {
+       cat(idi,'\n')
+       coh_summary=dt[id==idi, as.list(unlist(coh_summary(.SD))), .SDcols=cols]
+       coh_summary[,id:=idi]
+       coh_summaries = rbind(coh_summary, coh_summaries)
+     }
+     cohnames = c(paste0('coh_mean_',seq(1,6)),paste0('coh_sd_',seq(1,6)),'id')
+     setnames(coh_summaries,cohnames)
     
     #cat('Computing Cross-Correlations...\n')
     # Cross-correlations.
@@ -114,8 +114,6 @@ build_features <-function(patient, sample) {
       }
       all_corr = rbind(one_id,all_corr)
     }
-    
-    
     
     #ccr_pears = rcorr(as.matrix(dt[,seq(1,16),with=FALSE]), type='pearson')
     #ccr_pears = ccr_pears$r[lower.tri(ccr_pears$r)]
@@ -160,7 +158,7 @@ build_features <-function(patient, sample) {
     dt_tmp = merge(dt_tmp, dt_rob,     by='id')
     #dt_tmp = merge(dt_tmp, dt_skew,  by='id')
     dt_tmp = merge(dt_tmp, fft_summaries,      by='id')
-    #dt_tmp = merge(dt_tmp, coh_summaries,      by='id')
+    dt_tmp = merge(dt_tmp, coh_summaries,      by='id')
     dt_tmp = merge(dt_tmp, merged_vol_summary, by='id')
     dt_tmp = merge(dt_tmp, all_corr,           by='id')
     
@@ -174,7 +172,7 @@ build_features <-function(patient, sample) {
     }
     
     rm(list=c('dt','dt_means','dt_sds','dt_tmp','merged_vol_summary','melted',
-              'all_corr','dt_mini',
+              'all_corr','dt_mini','coh_summaries',
               'dt_rob','fft_summaries'))
     gc()
     
