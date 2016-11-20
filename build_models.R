@@ -18,35 +18,29 @@ build_global_model <- function() {
   dt_train = data[['train']]
   dt_test  = data[['test']]
   
-  simple_models = c('xgboost','rf','nnet')
-  for ( model in simple_models ) {
-    simple_models = c('xgboost','rf','nnet')
-    standalone_models(dt_train, dt_test, model, suffix='global_all')
-  }
+  cat('Removing Kendal and Spearman features...\n')
+  cols_2_from_test = grep("ken", colnames(dt_test))
+  cols_2_from_train = grep("ken", colnames(dt_train))
+  dt_train[,c(cols_2_from_train):=NULL]
+  dt_test[,c(cols_2_from_test):=NULL]
   
-  features_2_rm = find_bad_features(colnames(dt_test))
-  cat('Removing features ', features_2_rm,'\n')
-  
-  dt_train[,c(features_2_rm):=NULL]
-  dt_test[,c(features_2_rm):=NULL]
-  
-  simple_models = c('xgboost','rf','nnet')
-  for ( model in simple_models ) {
-    standalone_models(dt_train, dt_test, model, suffix='global_trimmed')
-  }
-  
-  # remove vol and volvol features...
-  cat('Removing Vol features...\n')
-  cols_2_from_test = grep("vol", colnames(dt_test))
-  cols_2_from_train = grep("vol", colnames(dt_train))
+  cols_2_from_test = grep("sper", colnames(dt_test))
+  cols_2_from_train = grep("sper", colnames(dt_train))
   dt_train[,c(cols_2_from_train):=NULL]
   dt_test[,c(cols_2_from_test):=NULL]
   
   simple_models = c('xgboost','rf','nnet')
+  #simple_models = c('nnet')
   for ( model in simple_models ) {
-    standalone_models(dt_train, dt_test, model, suffix='global_vol_removed')
+    standalone_models(dt_train, dt_test, model, suffix='cor_reduced')
   }
   
+  # dont like to use channel specific variables in a global model... 
+  # summarise things in 10 deciles...
+  #meanvolvol_cols_test  = grep("mean_volvol", colnames(dt_test))
+  #dt_train[,i:=seq(1,nrow(dt_train))]
+  #meanvolvol_cols_train = grep("mean_volvol",colnames(dt_train))
+  #ord = order(dt_train[4,c(meanvolvol_cols_train),with=FALSE])
 }
 
 build_balanced_models <- function(N_models=3) {
@@ -54,6 +48,18 @@ build_balanced_models <- function(N_models=3) {
   data = load_data()
   dt_train = data[['train']]
   dt_test  = data[['test']]
+  
+  cat('Removing Kendal and Spearman features...\n')
+  cols_2_from_test = grep("ken", colnames(dt_test))
+  cols_2_from_train = grep("ken", colnames(dt_train))
+  dt_train[,c(cols_2_from_train):=NULL]
+  dt_test[,c(cols_2_from_test):=NULL]
+  
+  cols_2_from_test = grep("sper", colnames(dt_test))
+  cols_2_from_train = grep("sper", colnames(dt_train))
+  dt_train[,c(cols_2_from_train):=NULL]
+  dt_test[,c(cols_2_from_test):=NULL]
+  
   # remove vol and volvol features...
   #cols_2_from_test = grep("vol", colnames(dt_test))
   #cols_2_from_train = grep("vol", colnames(dt_train))

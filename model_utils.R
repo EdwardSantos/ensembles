@@ -33,7 +33,7 @@ model_caret <- function(dt_train, models=c('xgboost'), partition=0) {
   ###################################
   if ( 'gbm' %in% models ) {
     cat('   Training gbm...\n')
-    gbm_grid_1 <- expand.grid(n.trees=c(500,1000),interaction.depth=c(6,15), shrinkage = 0.01,n.minobsinnode=c(3,6,10))
+    gbm_grid_1 <- expand.grid(n.trees=c(1000,10000),interaction.depth=c(6,15), shrinkage = 0.01,n.minobsinnode=c(3,6,10))
     #gbm_grid_1 <- expand.grid(n.trees=c(500),interaction.depth=c(6), shrinkage = 0.01,n.minobsinnode=c(6))
     
     gbm_model <- train(targetF~., 
@@ -248,20 +248,21 @@ load_data <- function() {
   
 ##################################################################################
 standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
+    train = copy(dt_train)
+    test  = copy(dt_test)
     path = getwd()
+    
     is_global_model = FALSE
-    if ( 'patient' %in% colnames(dt_test) ) {
-      patient = dt_test[,patient]
-      filename = paste0('new_',patient,'_',dt_test$id,'.mat')
-      dt_test[,patient:=NULL]
+    if ( 'patient' %in% colnames(test) ) {
+      patient = test[,patient]
+      filename = paste0('new_',patient,'_',test$id,'.mat')
+      test[,patient:=NULL]
       is_global_model=TRUE
     } else {
       patient = as.numeric(unlist(strsplit(path,'_'))[2])
-      filename = paste0('new_',patient,'_',dt_test$id,'.mat')
+      filename = paste0('new_',patient,'_',test$id,'.mat')
     }
     
-    train = copy(dt_train)
-    test  = copy(dt_test)
     #new_rows = do.call("rbind", replicate((imbalance-1), train[target==1], simplify = FALSE))
     #train=rbind(train,new_rows)
     #   Suggestions:
@@ -296,31 +297,32 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
     train_balanced = rbind(train,new_rows)
     train_balanced = train_balanced[sample(nrow(train),replace = F)]
     
-    trcontrol <- trainControl(method="cv",
+    trcontrol <- trainControl(method="repeatedcv",
+                              repeats = 5,
                               number = 5,
                               verboseIter  = TRUE,
                               returnData   = FALSE,
                               returnResamp = "all",
-                              allowParallel = FALSE,
+                              allowParallel = TRUE,
                               summaryFunction=twoClassSummary,
                               classProbs=T)
     
     if ( model_name=='xgboost' ) {
       cat('   Training xgboost\n')
       
-      xgb_grid_1 <- expand.grid(nrounds= 10000,
-                                max_depth=c(10),
-                                gamma=c(0.2,0.5),
-                                min_child_weight=c(0.2,0.5),
-                                colsample_bytree=c(0.2,0.5),
-                                eta=c(0.01))
-      
       #xgb_grid_1 <- expand.grid(nrounds= 10000,
-      #                          max_depth=c(10,15),
-      #                          gamma=c(0.1,0.5),
-      #                          min_child_weight=c(0.1,0.5),
-      #                          colsample_bytree=c(0.1,0.5),
+      #                          max_depth=c(10),
+      #                          gamma=c(0.2),
+      #                          min_child_weight=c(0.5),
+      #                          colsample_bytree=c(0.2),
       #                          eta=c(0.01))
+      
+      xgb_grid_1 <- expand.grid(nrounds = 10000,
+                                max_depth=c(10,15),
+                                gamma=c(0.1,0.5),
+                                min_child_weight=c(0.2,0.5),
+                                colsample_bytree=c(0.2),
+                                eta=c(0.01))
       
       model_balanced <- train(targetF~.,
                               data=train_balanced,
@@ -333,14 +335,15 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       xgb_balanced   = model_balanced$finalModel
 
       importance_balanced   <- xgb.importance(model = xgb_balanced)
-
+      
+      cat('Writting importance...\n')
       write.csv(importance_balanced,   file='~/local/kaggle/eeg/Data/xgb_importance_balanced.csv')
     }
     
     if ( model_name=='rf' ) {
       cat('   Training RF...\n')
-      #rf_grid_1 <- expand.grid(mtry=c(5,10,20))
-      rf_grid_1 <- expand.grid(mtry=c(15,20))
+      rf_grid_1 <- expand.grid(mtry=c(5,10,20))
+      #rf_grid_1 <- expand.grid(mtry=c(15))
       
       model_balanced <- train(targetF ~., 
                               data=train_balanced, 
@@ -356,13 +359,13 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       
       importance_balanced   = importance(rf_balanced)
       
+      cat('Writting importance...\n')
       write.csv(importance_balanced,   file='~/local/kaggle/eeg/Data/rf_importance_balanced.csv')
-
     }
     
     if ( model_name=='nnet') {
       cat('   Training nnet...\n')
-      #nnet_grid_1 <- expand.grid(size=2,decay=0.1)
+      #nnet_grid_1 <- expand.grid(size=2,decay=0.5)
       nnet_grid_1 <- expand.grid(size=c(2,5,7),decay=c(0.5,0.1))
       
       model_balanced <- train(targetF~., 
@@ -379,6 +382,7 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       
       importance_balanced   = garson(nnet_balanced, bar_plot=F)
       
+      cat('Writting importance...\n')
       write.csv(importance_balanced,   file='~/local/kaggle/eeg/Data/nnet_importance_balanced.csv')
     }
     #png(filename = 'models/xgb_importance_matrix.png',height=100,width=20,units='cm',res=900)
@@ -395,18 +399,25 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       write.csv(sub_balanced,   file=sprintf('~/local/kaggle/eeg/Data/standalone_%s_balanced_probs_%s.csv',model_name,suffix), row.names=F, quote=F)
     } else {
       write.csv(sub_balanced,   file=sprintf('models/standalone_%s_balanced_probs_%s.csv',model_name,suffix), row.names=F, quote=F)
-    }  
+    }
 }
 ##################################################################################
   
   
-find_bad_features <- function(feature_names) {
+find_bad_features <- function(feature_names, global=FALSE) {
     feature_names = feature_names[!(feature_names%in%c('id'))]
     
-    f1 = fread('models/nnet_importance_balanced.csv')
-    f3 = fread('models/rf_importance_balanced.csv')
-    f5 = fread('models/xgb_importance_balanced.csv')
+    if ( global ) {
+      f1 = fread('~/local/kaggle/eeg/Data/nnet_importance_balanced.csv')
+      f3 = fread('~/local/kaggle/eeg/Data/rf_importance_balanced.csv')
+      f5 = fread('~/local/kaggle/eeg/Data/xgb_importance_balanced.csv')
+    } else {      
+      f1 = fread('models/nnet_importance_balanced.csv')
+      f3 = fread('models/rf_importance_balanced.csv')
+      f5 = fread('models/xgb_importance_balanced.csv')
+    }
     
+    f5[,f:=as.integer(Feature)]
     map = data.table(f=seq(1,length(feature_names)), V1=feature_names)
     f5 = merge(f5, map, by='f')
     f5=f5[,list(V1.y,Gain)]
