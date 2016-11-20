@@ -3,22 +3,25 @@ gc()
 require(data.table)
 require(xgboost)
 require(MASS)
-require(rnn)
+#require(rnn)
 require(randomForest)
-require(mice)
+#require(mice)
 require(caret)
 require(plyr)
 
-source('../../model_utils.R')
+source('~/local/kaggle/eeg/model_utils.R')
 
-build_balanced_models <- function(N_models=2) {
-  data = load_data()
+
+build_global_model <- function() {
+  cat('Building global models...\n')
+  data = load_all_data()
   dt_train = data[['train']]
   dt_test  = data[['test']]
   
   simple_models = c('xgboost','rf','nnet')
   for ( model in simple_models ) {
-    standalone_models(dt_train, dt_test, model, suffix='all')
+    simple_models = c('xgboost','rf','nnet')
+    standalone_models(dt_train, dt_test, model, suffix='global_all')
   }
   
   features_2_rm = find_bad_features(colnames(dt_test))
@@ -29,10 +32,51 @@ build_balanced_models <- function(N_models=2) {
   
   simple_models = c('xgboost','rf','nnet')
   for ( model in simple_models ) {
-    standalone_models(dt_train, dt_test, model, suffix='trimmed')
+    standalone_models(dt_train, dt_test, model, suffix='global_trimmed')
   }
   
-  return(0)
+  # remove vol and volvol features...
+  cat('Removing Vol features...\n')
+  cols_2_from_test = grep("vol", colnames(dt_test))
+  cols_2_from_train = grep("vol", colnames(dt_train))
+  dt_train[,c(cols_2_from_train):=NULL]
+  dt_test[,c(cols_2_from_test):=NULL]
+  
+  simple_models = c('xgboost','rf','nnet')
+  for ( model in simple_models ) {
+    standalone_models(dt_train, dt_test, model, suffix='global_vol_removed')
+  }
+  
+}
+
+build_balanced_models <- function(N_models=3) {
+  cat('Building patient specific models...')
+  data = load_data()
+  dt_train = data[['train']]
+  dt_test  = data[['test']]
+  # remove vol and volvol features...
+  #cols_2_from_test = grep("vol", colnames(dt_test))
+  #cols_2_from_train = grep("vol", colnames(dt_train))
+  #dt_train[,c(cols_2_from_train):=NULL]
+  #dt_test[,c(cols_2_from_test):=NULL]
+  
+  #for ( model in simple_models ) {
+  #simple_models = c('xgboost','rf','nnet')
+  #  standalone_models(dt_train, dt_test, model, suffix='all')
+  #}
+  
+  #features_2_rm = find_bad_features(colnames(dt_test))
+  #cat('Removing features ', features_2_rm,'\n')
+  
+  #dt_train[,c(features_2_rm):=NULL]
+  #dt_test[,c(features_2_rm):=NULL]
+  #
+  #simple_models = c('xgboost','rf','nnet')
+  #for ( model in simple_models ) {
+  #  standalone_models(dt_train, dt_test, model, suffix='trimmed')
+  #}
+  
+  #return(0)
   
   # From the above, decided:
   # - use probability/raw,
@@ -117,7 +161,7 @@ build_balanced_models <- function(N_models=2) {
     model_name = model_names[m]
     bag_predictions = data.table(dummy=NA) # ... will have a dt with predictions...
     for ( i in 1:N_samples ) {
-      prediction = predict(all_models[[model_name]][[i]], newdata=dt_test, type='raw')
+      prediction = predict(all_models[[model_name]][[i]], newdata=dt_test, type='prob')$S
       bag_predictions = cbind(bag_predictions, prediction)
     }
     bag_predictions[,dummy:=NULL]
@@ -164,7 +208,7 @@ stack_models <- function(all_models, train) {
     model_name = model_names[m]
     bag_predictions = data.table(dummy=NA) # ... will have a dt with predictions...
     for ( i in 1:N_samples ) {
-      prediction = predict(all_models[[model_name]][[i]], newdata=train_bagged, type='raw')
+      prediction = predict(all_models[[model_name]][[i]], newdata=train_bagged, type='prob')$S
       bag_predictions = cbind(bag_predictions, prediction)
     }
     bag_predictions[,dummy:=NULL]
@@ -216,7 +260,7 @@ bag_models <- function(all_models, train) {
     model_name = model_names[m]
     bag_predictions = data.table(dummy=NA) # ... will have a dt with predictions...
       for ( i in 1:N_samples ) {
-        prediction = predict(all_models[[model_name]][[i]], newdata=train_bagged, type='raw')
+        prediction = predict(all_models[[model_name]][[i]], newdata=train_bagged, type='prob')$S
         bag_predictions = cbind(bag_predictions, prediction)
       }
     bag_predictions[,dummy:=NULL]
@@ -226,7 +270,7 @@ bag_models <- function(all_models, train) {
     model <- glm(target~., 
                  family=binomial(link='logit'), 
                  data=bag_predictions,
-                 control = list(maxit = 100))
+                 control = list(maxit = 1000))
       
     tmp = summary(model)
     capture.output(tmp,file = sprintf('models/glm_bagging_summary_%s.txt', model_name))
