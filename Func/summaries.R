@@ -193,12 +193,13 @@ my_specpgram <- function(x, spans = NULL, kernel = NULL, taper = 0.1, pad = 0,
 #      u = u + 1
 #   }
 # }
-# cacf_calculator <- function(ts) {
-#   ACF = acf(ts, lag.max = 200, plot = F)
-#   sum_ACF_50   = sum(ACF$acf[2:50])
-#   sum_ACF_100  = sum(ACF$acf[50:100])
-#   sum_ACF_150  = sum(ACF$acf[100:150])
-#   sum_ACF_200  = sum(ACF$acf[150:200])
-#   #sum_ACF_200p = sum(ACF$acf[200:500])
-#   return(c(sum_ACF_50,sum_ACF_100,sum_ACF_150,sum_ACF_200))
-# }
+cacf_calculator <- function(ts) {
+   ACF = acf(ts, lag.max = 2000, plot = F)
+   #sum_ACF_100  = sum(ACF$acf[50:100])
+   #sum_ACF_50   = sum(ACF$acf[2:50])
+   #sum_ACF_150  = sum(ACF$acf[100:150])
+   #sum_ACF_200  = sum(ACF$acf[150:200])
+   #sum_ACF_200p = sum(ACF$acf[200:500])
+   cacf = sum(ACF$acf[0:2000])
+   return(cacf)
+}

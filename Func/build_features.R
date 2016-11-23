@@ -2,6 +2,7 @@
 require(data.table)
 require(seewave)
 require(reshape2)
+require(DescTools)
 #require(Hmisc)
 
 source('../../Func/plotFFT.R')
@@ -36,8 +37,6 @@ build_features <-function(patient, sample) {
     if ( nrow(dt)==0 ) {
       next
     }
-    # winsorise 
-    #dt[, winsorResult := winsor(RT), by=Subject]
     
     cols = c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V13','V14','V15','V16')
     
@@ -51,7 +50,19 @@ build_features <-function(patient, sample) {
     }
     
     #ids = unique(dt$id)
+    #dt = dt[id%in%ids[1:10]]
+    
+    # Winsorise
+    dt[,apply(.SD, 2, FUN = Winsorize, probs=c(0,01,0.99)), .SDcols=cols, by=id]
+
+    
+    #ids = unique(dt$id)
     #dt = dt[id%in%ids[7]]
+    #dt_mads = dt[,lapply(.SD, mean), by=id, .SDcols=cols]
+    #setnames(dt_mads, c('id',paste0('mad',cols)))
+    
+    #dt_iqrs = dt[,lapply(.SD, IQR), by=id, .SDcols=cols]
+    #setnames(dt_iqrs, c('id',paste0('iqr',cols)))
     
     dt_means = dt[,lapply(.SD, mean), by=id, .SDcols=cols]
     setnames(dt_means, c('id',paste0('mean',cols)))
@@ -62,6 +73,13 @@ build_features <-function(patient, sample) {
     dt_rob = dt[,as.list(unlist(lapply(.SD, rob_kurt_skew))), by=id, .SDcols=cols]
     robnames = c('id',paste0(rep(paste0(paste0('V',seq(1,16))),each=2),c('_skew','_kurt')))
     setnames(dt_rob,robnames)
+    
+    
+    dt_cacf = dt[,lapply(.SD, cacf_calculator), by=id, .SDcols=cols]
+    cacfnames = c('id',paste0(rep(paste0(paste0('V',seq(1,16)))),c('_cacf')))
+    setnames(dt_cacf,cacfnames)
+    
+    
     
     # Till now we have 16*4 parameters.
     # for each electrode, build FFT spectrum. Average Power in each wave.
@@ -100,16 +118,16 @@ build_features <-function(patient, sample) {
           dt_mini = dt[id==idi]
           rows = seq(1,nrow(dt_mini),100)
           
-          ken  = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="kendall")
+          #ken  = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="kendall")
           per  = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="pearson")
-          sper = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="spearman")
+          #sper = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="spearman")
           
           #kendal_name   = paste0('ken_',coli,'_',colj)
           #person_name   = paste0('per_',coli,'_',colj)
           #spearman_name = paste0('sper_',coli,'_',colj)
-          one_id[,(paste0('ken_',coli,'_',colj)):=ken]
+          #one_id[,(paste0('ken_',coli,'_',colj)):=ken]
           one_id[,(paste0('per_',coli,'_',colj)):=per]
-          one_id[,(paste0('sper_',coli,'_',colj)):=sper]
+          #one_id[,(paste0('sper_',coli,'_',colj)):=sper]
         }
       }
       all_corr = rbind(one_id,all_corr)
@@ -155,8 +173,10 @@ build_features <-function(patient, sample) {
     #cat('Now merging everything...\n')
     #targets = unique(dt[,target,by=id])
     dt_tmp = merge(dt_means, dt_sds,   by='id')
+    #dt_tmp = merge(dt_tmp, dt_mads,     by='id')
+    #dt_tmp = merge(dt_tmp, dt_iqrs,     by='id')
     dt_tmp = merge(dt_tmp, dt_rob,     by='id')
-    #dt_tmp = merge(dt_tmp, dt_skew,  by='id')
+    dt_tmp = merge(dt_tmp, dt_cacf,    by='id')
     dt_tmp = merge(dt_tmp, fft_summaries,      by='id')
     dt_tmp = merge(dt_tmp, coh_summaries,      by='id')
     dt_tmp = merge(dt_tmp, merged_vol_summary, by='id')
@@ -171,7 +191,7 @@ build_features <-function(patient, sample) {
       save(dt_features, file=paste0(features_path,i,'.RData'))
     }
     
-    rm(list=c('dt','dt_means','dt_sds','dt_tmp','merged_vol_summary','melted',
+    rm(list=c('dt','dt_cacf','dt_means','dt_sds','dt_tmp','merged_vol_summary','melted',
               'all_corr','dt_mini','coh_summaries',
               'dt_rob','fft_summaries'))
     gc()

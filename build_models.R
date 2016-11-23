@@ -19,21 +19,83 @@ build_global_model <- function() {
   dt_test  = data[['test']]
   
   cat('Removing Kendal and Spearman features...\n')
-  cols_2_from_test = grep("ken", colnames(dt_test))
+  cols_2_from_test  = grep("ken", colnames(dt_test))
   cols_2_from_train = grep("ken", colnames(dt_train))
   dt_train[,c(cols_2_from_train):=NULL]
-  dt_test[,c(cols_2_from_test):=NULL]
+  dt_test [,c(cols_2_from_test):=NULL]
   
-  cols_2_from_test = grep("sper", colnames(dt_test))
+  cols_2_from_test  = grep("sper", colnames(dt_test))
   cols_2_from_train = grep("sper", colnames(dt_train))
   dt_train[,c(cols_2_from_train):=NULL]
-  dt_test[,c(cols_2_from_test):=NULL]
+  dt_test [,c(cols_2_from_test):=NULL]
   
-  simple_models = c('xgboost','rf','nnet')
-  #simple_models = c('nnet')
-  for ( model in simple_models ) {
-    standalone_models(dt_train, dt_test, model, suffix='cor_reduced')
+  #add_extra_features(dt_train)
+  #add_extra_features(dt_test)
+  
+  #ggplot(dt_train, aes(x=mean_vol)) + facet_grid(target~patient, scales = 'free_y') + geom_histogram()
+  #ggplot(dt_train, aes(x=mean_vol,y=var_vol)) + geom_point()
+  
+  for ( pat in c(1,2,3) ) {
+    cat('Fitting patient ', pat,'\n')
+    
+    #valid_cols1  = c('target','patient',grep("per", colnames(dt_train),value = T))
+    #valid_cols2  = c('patient',grep("per", colnames(dt_train),value = T))
+    
+    #dt_train_tmp = copy(dt_train[patient==pat,.SD,.SDcols=valid_cols1])
+    #dt_test_tmp = copy(dt_test[patient==pat,  .SD,.SDcols=valid_cols2])
+    dt_train_tmp = copy(dt_train[patient==pat])
+    dt_test_tmp  = copy(dt_test[patient==pat])
+    
+    simple_models = c('xgboost','rf','nnet')
+    #simple_models = c('nnet')
+    for ( model in simple_models ) {
+      #standalone_models(dt_train_tmp, dt_test_tmp, model, suffix=sprintf('all_f_',pat))
+      standalone_models(dt_train_tmp, dt_test_tmp, model, suffix=sprintf('all_f_',pat))
+    }
   }
+  #######################
+  ## ENSEMBLEs.
+#   suffixes = c('with_patient_numb','with_no_patient_numb')
+#   for ( suffix in suffixes ) {
+#     rf_train_pred   = fread(sprintf('Data/train_full_rf_%s.csv',suffix))
+#     nnet_train_pred = fread(sprintf('Data/train_full_nnet_cor_reduced.csv',suffix))
+#     xgb_train_pred  = fread(sprintf('Data/train_full_xgboost_cor_reduced.csv',suffix)) 
+#     merged_training = data.table(rf=rf_train_pred$V1, 
+#                                  nnet=nnet_train_pred$V1, 
+#                                  xgb=xgb_train_pred$V1, 
+#                                  target=dt_train$target)
+#     merged_training[,target:=as.factor(target)]
+#     
+#     ensemble_model_1 <- glm(target~., 
+#                             family=binomial(link='logit'), 
+#                             data=merged_training,
+#                             control = list(maxit = 100))
+#     summary(ensemble_model_1)
+#     
+#     rf_test_pred   = fread(sprintf('Data/global_rf_%s.csv',suffix))
+#     nnet_test_pred = fread(sprintf('Data/global_nnet_%s.csv',suffix))
+#     xgb_test_pred  = fread(sprintf('Data/global_xgboost_%s.csv',suffix))
+#     merged_test = data.table(rf   = rf_test_pred$Class, 
+#                              nnet = nnet_test_pred$Class, 
+#                              xgb  = xgb_test_pred$Class)
+#     
+#     glm_prediction <- predict(ensemble_model_1, newdata=merged_test, type='response')
+#     sub=data.table(File=rf_test_pred$File,Class=glm_prediction)
+#     write.csv(sub, file=sprintf('glm_%s.csv',suffix), row.names=F, quote=F)
+#   }
+  
+  ##############################
+  #cat('Anonimize features.')
+  #cnames = colnames(dt_train)
+  #mean*,sd*,*skew,*kurt,
+  #*band_1,...,*band_6, 
+  #*mean_vol, *var_vol, *mean_volvol,*var_volvol, per*
+  
+  #dt_train
+  
+  # Save 20% of the data for glm.
+  #dt_train_1s = copy(dt_train[target==1])
+  #dt_train_0s = copy(dt_train[target==0])
   
   # dont like to use channel specific variables in a global model... 
   # summarise things in 10 deciles...
@@ -187,7 +249,6 @@ build_balanced_models <- function(N_models=3) {
   sub_final <- data.table(File=filename, Class=stacked_prediction)
   write.csv(sub_final, file='models/stacked_prediction.csv', row.names=F, quote=F)
 }
-
 
 stack_models <- function(all_models, train) {
   train_bagged = copy(train)

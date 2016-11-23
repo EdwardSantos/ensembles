@@ -1,5 +1,71 @@
 library('NeuralNetTools')
 
+plots <- function(dt_train, dt_test) {
+  library(gridExtra)
+  
+  ggname <- function(x) {
+    if (class(x) != "character") {
+      return(x)
+    }
+    y <- sapply(x, function(s) {
+      if (!grepl("^`", s)) {
+        s <- paste("`", s, sep="", collapse="")
+      }
+      if (!grepl("`$", s)) {
+        s <- paste(s, "`", sep="", collapse="")
+      }
+    }
+    )
+    y 
+  }
+  
+  dt_train[,index:=seq(1,nrow(dt_train))]
+  dt_test[,index :=seq(1,nrow(dt_test))]
+  
+  colnames(dt_train) <- ggname(colnames(dt_train))
+  colnames(dt_test)  <- ggname(colnames(dt_test))
+  
+  train_names = colnames(dt_train)
+  test_names  = colnames(dt_test)
+  train_names = train_names[train_names%in%test_names]
+  pdf("plots.pdf", onefile = TRUE)
+  for ( cname in train_names ) {
+    p1 <- ggplot(dt_train, aes(x=index, color=as.factor(target))) + geom_point(aes_string(y=cname)) +
+      theme_gray(base_size = 12) + 
+      theme(legend.position='top',
+            legend.title=element_blank(),
+            axis.title.x=element_blank())
+    
+    p2 <- ggplot(dt_test, aes(x=index)) + geom_point(aes_string(y=cname)) +
+      theme_gray(base_size = 12) + 
+      theme(legend.position='top',
+            legend.title=element_blank(),
+            axis.title.x=element_blank())
+    
+    grid.arrange(p1,p2)
+  }
+  dev.off()
+}
+
+add_extra_features <- function(dt) {
+  sel = grep('meanV', names(dt), value = TRUE)
+  matplot(dt[1:20,.SD, .SDcols=sel])
+  dt[,mean_mean:=apply(.SD, 1, FUN=mean), .SDcols=sel]
+  dt[,var_mean:=apply(.SD, 1,  FUN=var), .SDcols=sel]
+  
+  sel    = grep('mean_vol',    names(dt), value = TRUE)
+  notsel = grep('mean_volvol', names(dt), value = TRUE)
+  sel = sel[!(sel%in%notsel)]
+  dt[,mean_vol:=apply(.SD,1,FUN=mean), .SDcols=sel]
+  dt[,var_vol :=apply(.SD,1,FUN=var),  .SDcols=sel]
+  
+  sel    = grep('var_vol',    names(dt), value = TRUE)
+  notsel = grep('var_volvol', names(dt), value = TRUE)
+  sel = sel[!(sel%in%notsel)]
+  dt[,mean_varvol:=apply(.SD,1,FUN=mean), .SDcols=sel]
+  dt[,var_varvol :=apply(.SD,1,FUN=var),  .SDcols=sel]
+}
+
 ##################################################################################
 #model_caret <- function(dt_train, dt_log_train, dt_test, models=c('xgboost'), partition=0) {
 model_caret <- function(dt_train, models=c('xgboost'), partition=0) {
@@ -128,6 +194,7 @@ model_caret <- function(dt_train, models=c('xgboost'), partition=0) {
   }
   return(raw_models)
 }
+
 ##################################################################################
 load_all_data <- function() {
   #patient = as.numeric(unlist(strsplit(path,'_'))[2])
@@ -156,6 +223,8 @@ load_all_data <- function() {
     load(sprintf('~/local/kaggle/eeg/Data/patient_%d/test/features/features.RData',patient))
     test_tmp = copy(dt_features)
     test_tmp[,patient:=patient]
+    
+    train_tmp[,patient:=patient]
     
     dt_train = rbind(dt_train,train_tmp)
     dt_test = rbind(dt_test,test_tmp)
@@ -256,12 +325,13 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
     if ( 'patient' %in% colnames(test) ) {
       patient = test[,patient]
       filename = paste0('new_',patient,'_',test$id,'.mat')
-      test[,patient:=NULL]
+      #test[,patient:=NULL]
       is_global_model=TRUE
     } else {
       patient = as.numeric(unlist(strsplit(path,'_'))[2])
       filename = paste0('new_',patient,'_',test$id,'.mat')
     }
+    
     
     #new_rows = do.call("rbind", replicate((imbalance-1), train[target==1], simplify = FALSE))
     #train=rbind(train,new_rows)
@@ -286,6 +356,14 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       set(test,which(is.na(test[[j]])),j,mean(test[[j]],na.rm=T))
     }
     
+    #if ( suffix=='with_patient_numb') {
+    #  train[,patient:=as.factor(patient)]
+    #  test[,patient :=as.factor(patient)]
+    #} else {
+    test[,patient:=NULL]
+    train[,patient:=NULL]
+    #}
+    
     train[target=='0',targetF:='N']
     train[target=='1',targetF:='S']
     train[,targetF:=as.factor(targetF)]
@@ -298,7 +376,7 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
     train_balanced = train_balanced[sample(nrow(train),replace = F)]
     
     trcontrol <- trainControl(method="repeatedcv",
-                              repeats = 5,
+                              repeats = 10,
                               number = 5,
                               verboseIter  = TRUE,
                               returnData   = FALSE,
@@ -310,19 +388,19 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
     if ( model_name=='xgboost' ) {
       cat('   Training xgboost\n')
       
-      #xgb_grid_1 <- expand.grid(nrounds= 10000,
-      #                          max_depth=c(10),
-      #                          gamma=c(0.2),
-      #                          min_child_weight=c(0.5),
-      #                          colsample_bytree=c(0.2),
-      #                          eta=c(0.01))
-      
-      xgb_grid_1 <- expand.grid(nrounds = 10000,
-                                max_depth=c(10,15),
-                                gamma=c(0.1,0.5),
-                                min_child_weight=c(0.2,0.5),
+      xgb_grid_1 <- expand.grid(nrounds= 10000,
+                                max_depth=c(10),
+                                gamma=c(0.1),
+                                min_child_weight=c(0.5),
                                 colsample_bytree=c(0.2),
                                 eta=c(0.01))
+      
+      #xgb_grid_1 <- expand.grid(nrounds = 10000,
+      #                          max_depth=c(10,15),
+      #                          gamma=c(0.1,0.5),
+      #                          min_child_weight=c(0.2,0.5),
+      #                          colsample_bytree=c(0.2),
+      #                          eta=c(0.01))
       
       model_balanced <- train(targetF~.,
                               data=train_balanced,
@@ -338,12 +416,14 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       
       cat('Writting importance...\n')
       write.csv(importance_balanced,   file='~/local/kaggle/eeg/Data/xgb_importance_balanced.csv')
+      save(model_balanced, file=sprintf("~/local/kaggle/eeg/Data/%s.RData",model_name))
+      
     }
     
     if ( model_name=='rf' ) {
       cat('   Training RF...\n')
-      rf_grid_1 <- expand.grid(mtry=c(5,10,20))
-      #rf_grid_1 <- expand.grid(mtry=c(15))
+      rf_grid_1 <- expand.grid(mtry=c(10,20))
+      #rf_grid_1 <- expand.grid(mtry=c(20))
       
       model_balanced <- train(targetF ~., 
                               data=train_balanced, 
@@ -361,12 +441,22 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       
       cat('Writting importance...\n')
       write.csv(importance_balanced,   file='~/local/kaggle/eeg/Data/rf_importance_balanced.csv')
+      save(model_balanced, file=sprintf("~/local/kaggle/eeg/Data/%s.RData",model_name))
+      
     }
     
     if ( model_name=='nnet') {
+      # 0.9209912  0.9710399  0.5480788 with patient number.
+      # 0.9231362  0.9720688  0.5255419 without patient.
+      #  0.9230588  0.972657  0.5264039
+      #  0.9210187  0.969864  0.5290394
+      #0.9328461  0.9940278  0.3058511
+      #   0.9836879  0.9872727  0.7136316
+      
+      
       cat('   Training nnet...\n')
-      #nnet_grid_1 <- expand.grid(size=2,decay=0.5)
-      nnet_grid_1 <- expand.grid(size=c(2,5,7),decay=c(0.5,0.1))
+      nnet_grid_1 <- expand.grid(size=c(2,6,10), decay=0.5)
+      #nnet_grid_1 <- expand.grid(size=c(2,5,7),decay=c(0.5,0.1))
       
       model_balanced <- train(targetF~., 
                                 data=train_balanced, 
@@ -380,10 +470,12 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
       
       nnet_balanced   = model_balanced$finalModel
       
-      importance_balanced   = garson(nnet_balanced, bar_plot=F)
+      importance_balanced = garson(nnet_balanced, bar_plot=F)
       
       cat('Writting importance...\n')
       write.csv(importance_balanced,   file='~/local/kaggle/eeg/Data/nnet_importance_balanced.csv')
+      save(model_balanced, file=sprintf("~/local/kaggle/eeg/Data/%s.RData",model_name))
+      
     }
     #png(filename = 'models/xgb_importance_matrix.png',height=100,width=20,units='cm',res=900)
     #xgb.plot.importance(importance_matrix = importance_matrix)
@@ -392,14 +484,18 @@ standalone_models <- function(dt_train, dt_test, model_name, suffix='0') {
     ###########################################
     ###### Build stand-alone submissions.######
     ###########################################
-    # Probabilities.
+    train[,targetF:=NULL]
+    train_prediction = predict(model_balanced, newdata=train, type='prob')
+    train_sub = data.table(train_prediction$S)
+    write.csv(train_sub, file=sprintf('~/local/kaggle/eeg/Data/train_full_%s_%s.csv',model_name,suffix), row.names=F, quote=F)
+    
     prediction_balanced   = predict(model_balanced, newdata=test, type='prob')
     sub_balanced   <- data.table(File=filename, Class=prediction_balanced$S)
-    if ( is_global_model ) {
-      write.csv(sub_balanced,   file=sprintf('~/local/kaggle/eeg/Data/standalone_%s_balanced_probs_%s.csv',model_name,suffix), row.names=F, quote=F)
-    } else {
-      write.csv(sub_balanced,   file=sprintf('models/standalone_%s_balanced_probs_%s.csv',model_name,suffix), row.names=F, quote=F)
-    }
+    #if ( is_global_model ) {
+    write.csv(sub_balanced,   file=sprintf('~/local/kaggle/eeg/Data/global_%s_patient_%s.csv',model_name,suffix), row.names=F, quote=F)
+    #} else {
+    #  write.csv(sub_balanced,   file=sprintf('models/standalone_%s_%s.csv',model_name,suffix), row.names=F, quote=F)
+    #}
 }
 ##################################################################################
   
@@ -421,7 +517,7 @@ find_bad_features <- function(feature_names, global=FALSE) {
     map = data.table(f=seq(1,length(feature_names)), V1=feature_names)
     f5 = merge(f5, map, by='f')
     f5=f5[,list(V1.y,Gain)]
-
+    
     setorder(f1,-rel_imp)
     setorder(f3,-MeanDecreaseGini)
     setorder(f5,-Gain)
