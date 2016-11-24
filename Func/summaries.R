@@ -26,25 +26,26 @@ fft_summary <- function(y) {
 
 # Summarise coherence between waves. Produces 5*15*16 values.
 coh_summary <- function(dt_N) {
-  u=0
+  #u=0
   #N = sum(seq(1,15))
   #N=120
-  N=56
-  wave_1 = rep(NA,N)
-  wave_2 = rep(NA,N)
-  wave_3 = rep(NA,N)
-  wave_4 = rep(NA,N)
-  wave_5 = rep(NA,N)
-  wave_6 = rep(NA,N)
+  #N=56
+  #wave_1 = rep(NA,N)
+  #wave_3 = rep(NA,N)
+  #wave_2 = rep(NA,N)
+  #wave_4 = rep(NA,N)
+  #wave_5 = rep(NA,N)
+  #wave_6 = rep(NA,N)
   #for ( i in seq(1,15) ) {
   #  for ( j in seq(i+1,16) ) {
   #for ( i in seq(1,14,1) ) {
   #  for ( j in seq(i+2,16,2) ) {
+  all_pairs = data.table(dummy=NA)
   pairs = list(list(1,5),list(9,13),list(10,14),list(11,15),list(12,16),list(3,7),list(2,6),list(4,8))
   for ( pair in pairs ) {
       i = pair[[1]][[1]]
       j = pair[[2]][[1]]
-      u = u + 1
+      #u = u + 1
       #if ( u%%2==0 ) cat('\r',i,',',j,',',u)
       #c=data.table(coh(dt_N[,i,with=FALSE],dt_N[,j,with=FALSE], f=400, plot=F))
       #c=data.table(coh(dt[id==idi,V1],dt[id==idi,V2], f=400))
@@ -52,31 +53,48 @@ coh_summary <- function(dt_N) {
       #c=data.table(coh(dt[,V1],dt[,V2], f=400))
       
       c[,X:=X*1000]
-      wave_1[u] = log(sum(c[X>=0 & X<4,V2]))
-      wave_2[u] = log(sum(c[X>=4 & X<8,V2]))
-      wave_3[u] = log(sum(c[X>=8 & X<12,V2]))
-      wave_4[u] = log(sum(c[X>=12 & X<30,V2]))
-      wave_5[u] = log(sum(c[X>=30 & X<70,V2]))
-      wave_6[u] = log(sum(c[X>=70 & X<200,V2]))
+      
+      tmp = data.table(log(sum(c[X>=0 & X<4,V2])),
+              log(sum(c[X>=0 & X<4,V2])),
+              log(sum(c[X>=4 & X<8,V2])),
+              log(sum(c[X>=8 & X<12,V2])),
+              log(sum(c[X>=12 & X<30,V2])),
+              log(sum(c[X>=30 & X<70,V2])),
+              log(sum(c[X>=70 & X<200,V2])))
+      
+      sample_names = c(paste0('wave_1_',i,'_',j),
+                       paste0('wave_2_',i,'_',j),
+                       paste0('wave_3_',i,'_',j),
+                       paste0('wave_4_',i,'_',j),
+                       paste0('wave_5_',i,'_',j),
+                       paste0('wave_6_',i,'_',j),
+                       paste0('wave_r_',i,'_',j))
+      
+      setnames(tmp,sample_names)
+      
+      all_pairs=cbind(all_pairs, tmp)
     #}
   }
-  avg_wave1 = mean(wave_1, na.rm=T)
-  avg_wave2 = mean(wave_2, na.rm=T)
-  avg_wave3 = mean(wave_3, na.rm=T)
-  avg_wave4 = mean(wave_4, na.rm=T)
-  avg_wave5 = mean(wave_5, na.rm=T)
-  avg_wave6 = mean(wave_6, na.rm=T)
-  sum_wave1 = sum(wave_1, na.rm=T)
-  sum_wave2 = sum(wave_2, na.rm=T)
-  sum_wave3 = sum(wave_3, na.rm=T)
-  sum_wave4 = sum(wave_4, na.rm=T)
-  sum_wave5 = sum(wave_5, na.rm=T)
-  sum_wave6 = sum(wave_6, na.rm=T)  
+  all_pairs[,dummy:=NULL]
+  
+  return(all_pairs)
+  #avg_wave1 = mean(wave_1, na.rm=T)
+  #avg_wave2 = mean(wave_2, na.rm=T)
+  ##avg_wave3 = mean(wave_3, na.rm=T)
+  #avg_wave4 = mean(wave_4, na.rm=T)
+  #avg_wave6 = mean(wave_6, na.rm=T)
+  ##avg_wave5 = mean(wave_5, na.rm=T)
+  #sum_wave1 = sum(wave_1, na.rm=T)
+  #sum_wave2 = sum(wave_2, na.rm=T)
+  #sum_wave3 = sum(wave_3, na.rm=T)
+  #sum_wave4 = sum(wave_4, na.rm=T)
+  #sum_wave5 = sum(wave_5, na.rm=T)
+  #sum_wave6 = sum(wave_6, na.rm=T)  
   #return(c(wave_1,wave_2,wave_3,wave_4,wave_5,
   #         avg_wave1,avg_wave2,avg_wave3,avg_wave4,avg_wave5,
   #         sd_wave1,sd_wave2,sd_wave3,sd_wave4,sd_wave5))
-  return(c(avg_wave1,avg_wave2,avg_wave3,avg_wave4,avg_wave5,avg_wave6,
-           sum_wave1,sum_wave2,sum_wave3,sum_wave4,sum_wave5,sum_wave6))
+  #return(c(avg_wave1,avg_wave2,avg_wave3,avg_wave4,avg_wave5,avg_wave6,
+  #         sum_wave1,sum_wave2,sum_wave3,sum_wave4,sum_wave5,sum_wave6))
 }
  
 my_coh <- function(wave1, wave2, f) {
