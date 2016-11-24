@@ -52,7 +52,6 @@ build_features <-function(patient, sample) {
     # Winsorize.
     dt = dt[,lapply(.SD, Winsorize, probs=c(0.01,0.99)), by=id, .SDcols=cols]
     
-    
     dt_means = dt[,lapply(.SD, mean), by=id, .SDcols=cols]
     setnames(dt_means, c('id',paste0('mean',cols)))
     
@@ -86,10 +85,10 @@ build_features <-function(patient, sample) {
     fftnames = c(paste0(rep(paste0(paste0('V',seq(1,16))),each=6),paste0('_band_',seq(1,6))), 'id')
     setnames(fft_summaries,fftnames)
     
-     cat('Computing coherence...\n')
+     #cat('Computing coherence...\n')
      coh_summaries = data.table()
      for ( idi in ids ) {
-       cat(idi,'\n')
+       #cat(idi,'\n')
        coh_summary=dt[id==idi, as.list(unlist(coh_summary(.SD))), .SDcols=cols]
        coh_summary[,id:=idi]
        coh_summaries = rbind(coh_summary, coh_summaries)
@@ -106,9 +105,11 @@ build_features <-function(patient, sample) {
         for ( colj in seq(coli+2,16,2) ) {
           dt_mini = dt[id==idi]
           rows = seq(1,nrow(dt_mini),100)
+          col1 = paste0('V',coli)
+          col2 = paste0('V',colj)
           
           #ken  = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="kendall")
-          per  = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="pearson")
+          per  = cor(dt_mini[rows,get(col1)], dt_mini[rows,get(col2)], use="complete.obs", method="pearson")
           #sper = cor(dt_mini[rows,coli,with=FALSE], dt_mini[rows,colj,with=FALSE], use="complete.obs", method="spearman")
           
           #kendal_name   = paste0('ken_',coli,'_',colj)
