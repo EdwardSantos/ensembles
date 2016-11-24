@@ -58,7 +58,7 @@ coh_summary <- function(dt_N) {
       wave_4[u] = log(sum(c[X>=12 & X<30,V2]))
       wave_5[u] = log(sum(c[X>=30 & X<70,V2]))
       wave_6[u] = log(sum(c[X>=70 & X<200,V2]))
-    }
+    #}
   }
   avg_wave1 = mean(wave_1, na.rm=T)
   avg_wave2 = mean(wave_2, na.rm=T)
