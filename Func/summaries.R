@@ -38,8 +38,12 @@ coh_summary <- function(dt_N) {
   wave_6 = rep(NA,N)
   #for ( i in seq(1,15) ) {
   #  for ( j in seq(i+1,16) ) {
-  for ( i in seq(1,14,1) ) {
-    for ( j in seq(i+2,16,2) ) {
+  #for ( i in seq(1,14,1) ) {
+  #  for ( j in seq(i+2,16,2) ) {
+  pairs = list(list(1,5),list(9,13),list(10,14),list(11,15),list(12,16),list(3,7),list(2,6),list(4,8))
+  for ( pair in pairs ) {
+      i = pair[[1]][[1]]
+      j = pair[[2]][[1]]
       u = u + 1
       #if ( u%%2==0 ) cat('\r',i,',',j,',',u)
       #c=data.table(coh(dt_N[,i,with=FALSE],dt_N[,j,with=FALSE], f=400, plot=F))
@@ -203,3 +207,5 @@ cacf_calculator <- function(ts) {
    cacf = sum(ACF$acf[0:2000])
    return(cacf)
 }
+
+
