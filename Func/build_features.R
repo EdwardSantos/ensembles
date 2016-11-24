@@ -95,7 +95,7 @@ build_features <-function(patient, sample) {
        coh_summaries = rbind(coh_summary, coh_summaries)
      }
      #cohnames = c(paste0('coh_mean_',seq(1,6)),paste0('coh_sd_',seq(1,6)),'id')
-     setnames(coh_summaries,cohnames)
+     #setnames(coh_summaries,cohnames)
     
     #cat('Computing Cross-Correlations...\n')
     # Cross-correlations.
