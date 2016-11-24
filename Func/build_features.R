@@ -49,20 +49,9 @@ build_features <-function(patient, sample) {
       dt[,N:=NULL]
     }
     
-    #ids = unique(dt$id)
-    #dt = dt[id%in%ids[1:10]]
+    # Winsorize.
+    dt = dt[,lapply(.SD, Winsorize, probs=c(0.01,0.99)), by=id, .SDcols=cols]
     
-    # Winsorise
-    dt[,apply(.SD, 2, FUN = Winsorize, probs=c(0,01,0.99)), .SDcols=cols, by=id]
-
-    
-    #ids = unique(dt$id)
-    #dt = dt[id%in%ids[7]]
-    #dt_mads = dt[,lapply(.SD, mean), by=id, .SDcols=cols]
-    #setnames(dt_mads, c('id',paste0('mad',cols)))
-    
-    #dt_iqrs = dt[,lapply(.SD, IQR), by=id, .SDcols=cols]
-    #setnames(dt_iqrs, c('id',paste0('iqr',cols)))
     
     dt_means = dt[,lapply(.SD, mean), by=id, .SDcols=cols]
     setnames(dt_means, c('id',paste0('mean',cols)))
@@ -80,11 +69,11 @@ build_features <-function(patient, sample) {
     setnames(dt_cacf,cacfnames)
     
     
-    
     # Till now we have 16*4 parameters.
     # for each electrode, build FFT spectrum. Average Power in each wave.
     #cat('Computing FFT...\n')
     ids = unique(dt$id)
+    
     fft_summaries = data.table()
     for ( idi in ids ) {
       #cat(idi,'\n')
@@ -105,7 +94,7 @@ build_features <-function(patient, sample) {
        coh_summary[,id:=idi]
        coh_summaries = rbind(coh_summary, coh_summaries)
      }
-     cohnames = c(paste0('coh_mean_',seq(1,6)),paste0('coh_sd_',seq(1,6)),'id')
+     #cohnames = c(paste0('coh_mean_',seq(1,6)),paste0('coh_sd_',seq(1,6)),'id')
      setnames(coh_summaries,cohnames)
     
     #cat('Computing Cross-Correlations...\n')
